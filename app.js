@@ -2,7 +2,7 @@ import { FOCUS, STORAGE_KEY, shuffle, selectQuestions, recordAnswer, summarize, 
 
 const main = document.querySelector('main');
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let data, state, storage, timer, flash, lastResult, saveFailed = false;
+let data, state, storage, timer, flash, lastResult, pendingStart, saveFailed = false;
 try { storage = window.localStorage; } catch { storage = {getItem:()=>null,setItem:()=>{throw new Error('Storage unavailable');}}; }
 state = readState(storage);
 const byId = id => data.questions.find(q => q.id === id);
@@ -61,8 +61,8 @@ function errorPage() {
   return `<p class="eyebrow">ПОВТОРЕНИЕ</p><h1 class="page-title">Разберём ошибки</h1>${qs.length?`<p class="note">${qs.length} вопросов пока требуют внимания. Правильный ответ в следующей тренировке уберёт вопрос из этого списка.</p>${action('errors','Повторить все ошибки →')}<div class="fact-list">${qs.map(q=>`<div class="fact"><p>Тема ${q.topic} · ${esc(topicById(q.topic).short)}</p><strong>${esc(q.prompt)}</strong><details><summary>Вспомнить правильный ответ</summary><p class="note">${esc(q.explanation)}</p></details><a class="text-button" href="#topic/${q.topic}">Вернуться к теме ↗</a></div>`).join('')}</div>`:`<div class="empty"><div class="empty-mark">✓</div><h2>Здесь пока нет ошибок</h2><p>${Object.keys(state.progress).length?'Все вопросы из списка повторения уже исправлены. Попробуй новый квиз.':'Начни с тренировки. Вопросы, в которых ошибёшься, появятся здесь для повторения.'}</p>${action('practice','Тренировать темы 4–6','focus')}</div>`}`;
 }
 function scopeFor(value) { return value==='all'?allIds():value==='focus'?FOCUS:[Number(value)]; }
-function start(mode,value='all') {
-  if(state.session && !confirm('Начать новую тренировку? Незаконченный раунд будет заменён, уже записанные ответы сохранятся.')) return;
+function start(mode,value='all',confirmed=false) {
+  if(state.session && !confirmed){pendingStart={mode,value};document.querySelector('#new-round').showModal();return;}
   const scope=scopeFor(value);
   const qs=selectQuestions(data.questions,mode,scope,state.progress);
   if(!qs.length){navigate('#errors');return;}
@@ -139,7 +139,7 @@ function render(scroll=true) {
   document.querySelectorAll('[data-nav]').forEach(a=>{const active=a.dataset.nav===(page==='topic'?'topics':page);a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   document.title=`${page==='topic'&&topicById(id)?topicById(id).short:'Мой героический район'} · Тренажёр Максима`;
   if(scroll){window.scrollTo(0,0);main.focus({preventScroll:true});}
-  if(page==='quiz'&&state.session?.mode==='exam'){tick();timer=setInterval(tick,200);}
+  if(page==='quiz'&&state.session?.mode==='exam'&&!state.session.answers[state.session.index]){timer=setInterval(tick,200);tick();}
 }
 main.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;
@@ -167,6 +167,8 @@ document.addEventListener('keydown',event=>{
   if(location.hash==='#cards'&&event.code==='Space'&&flash&&!flash.revealed&&flash.index<flash.ids.length&&event.target.tagName!=='BUTTON'){event.preventDefault();flash.revealed=true;render(false);}
 });
 document.querySelector('#settings').addEventListener('click',()=>document.querySelector('#info').showModal());
+document.querySelector('#new-round-yes').addEventListener('click',()=>{document.querySelector('#new-round').close();if(pendingStart)start(pendingStart.mode,pendingStart.value,true);pendingStart=null;});
+document.querySelector('#new-round-no').addEventListener('click',()=>{document.querySelector('#new-round').close();pendingStart=null;navigate('#quiz');});
 document.querySelector('.skip').addEventListener('click',event=>{event.preventDefault();main.focus();});
 document.querySelector('#close-info').addEventListener('click',()=>document.querySelector('#info').close());
 document.querySelector('#reset').addEventListener('click',()=>document.querySelector('#reset-confirm').hidden=false);
