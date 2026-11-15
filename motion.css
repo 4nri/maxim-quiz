@@ -1,0 +1,68 @@
+/* Shared motion tokens. Keep frequently used controls below 200 ms. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --motion-feedback: 160ms;
+  --motion-enter: 250ms;
+}
+
+.button,
+.answer {
+  transition: transform var(--motion-feedback) var(--ease-out),
+    opacity var(--motion-feedback) var(--ease-out);
+}
+
+html[data-input="pointer"] .button:not(:disabled):active,
+html[data-input="pointer"] .answer:not(:disabled):active {
+  transform: scale(.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:not(:disabled):hover { opacity: .88; }
+  .answer:not(:disabled):hover { border-color: var(--choice-accent); }
+}
+
+.countdown-track i { transition: transform 200ms linear; }
+
+/* Native dialog retains its focus trap, Escape behaviour and return focus. */
+@supports (transition-behavior: allow-discrete) {
+  dialog {
+    opacity: 0;
+    transform: scale(.96);
+    transition: opacity var(--motion-enter) var(--ease-out),
+      transform var(--motion-enter) var(--ease-out),
+      display var(--motion-enter) allow-discrete,
+      overlay var(--motion-enter) allow-discrete;
+  }
+  dialog[open] { opacity: 1; transform: scale(1); }
+  dialog::backdrop {
+    opacity: 0;
+    transition: opacity var(--motion-enter) var(--ease-out),
+      display var(--motion-enter) allow-discrete,
+      overlay var(--motion-enter) allow-discrete;
+  }
+  dialog[open]::backdrop { opacity: 1; }
+  @starting-style {
+    dialog[open] { opacity: 0; transform: scale(.96); }
+    dialog[open]::backdrop { opacity: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button, .answer { transition: opacity var(--motion-feedback) var(--ease-out); }
+  html[data-input="pointer"] .button:not(:disabled):active,
+  html[data-input="pointer"] .answer:not(:disabled):active { transform: none; opacity: .8; }
+  .countdown-track i { transition: none; }
+  dialog, dialog[open] { transform: none; }
+  @starting-style { dialog[open] { transform: none; } }
+}
+
+/* A keyboard action never waits for decorative motion. */
+html[data-input="keyboard"] .button,
+html[data-input="keyboard"] .answer,
+html[data-input="keyboard"] .countdown-track i,
+html[data-input="keyboard"] dialog,
+html[data-input="keyboard"] dialog::backdrop { transition: none; }
+
+@media print {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
