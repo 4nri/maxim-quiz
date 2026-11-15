@@ -1,4 +1,4 @@
-import { FOCUS, STORAGE_KEY, shuffle, selectQuestions, recordAnswer, summarize, readState, freshState } from './engine.js';
+import { FOCUS, STORAGE_KEY, shuffle, selectQuestions, recordAnswer, summarize, readState, freshState, remainingSeconds, elapsedSeconds } from './engine.js';
 
 const main = document.querySelector('main');
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -88,7 +88,7 @@ function answer(index) {
   const chosen=expired||index===null?null:s.options[q.id][index];
   if(chosen===undefined)return;
   clearInterval(timer);
-  const seconds=s.mode==='exam'?Math.min(60,(Date.now()-s.started)/1000):Math.max(0,(Date.now()-s.started)/1000);
+  const seconds=elapsedSeconds(s.started,s.mode==='exam');
   s.answers.push({id:q.id,answer:chosen,correct:chosen===q.answer,seconds});
   if(s.mode!=='exam')state.progress=recordAnswer(state.progress,q,chosen);
   save();render(false);
@@ -106,7 +106,7 @@ function next() {
 function tick() {
   const s=state.session;
   if(!s||s.mode!=='exam'||s.answers[s.index])return;
-  const left=Math.max(0,Math.ceil((s.deadline-Date.now())/1000));
+  const left=remainingSeconds(s.deadline);
   const el=document.querySelector('#timer');
   if(el){el.textContent=`${left} с`;el.classList.toggle('urgent',left<=10);}
   if(left===0)answer(null);

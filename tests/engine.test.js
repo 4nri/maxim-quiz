@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { FOCUS, selectQuestions, recordAnswer, summarize, readState, shuffle } from '../engine.js';
+import { FOCUS, selectQuestions, recordAnswer, summarize, readState, shuffle, remainingSeconds, elapsedSeconds } from '../engine.js';
 const data=JSON.parse(await readFile(new URL('../data.json',import.meta.url),'utf8'));
 test('all 18 topics have sourced questions with four distinct answers',()=>{
   assert.equal(data.topics.length,18);assert.equal(data.questions.length,108);
@@ -42,4 +42,14 @@ test('shuffle preserves options without mutating the source',()=>{
 });
 test('score uses answers and actual elapsed times',()=>{
   assert.deepEqual(summarize([{correct:true,seconds:3},{correct:false,seconds:60}]),{correct:1,total:2,seconds:63});
+});
+test('timer expires at 60 seconds and remains expired after background or reload',()=>{
+  const start=1_000_000, deadline=start+60_000;
+  assert.equal(remainingSeconds(deadline,start),60);
+  assert.equal(remainingSeconds(deadline,start+59_001),1);
+  assert.equal(remainingSeconds(deadline,start+60_000),0);
+  assert.equal(remainingSeconds(deadline,start+180_000),0);
+  assert.equal(elapsedSeconds(start,true,start+180_000),60);
+  assert.equal(elapsedSeconds(start,false,start+180_000),180);
+  assert.equal(elapsedSeconds(start,true,start-1_000),0);
 });

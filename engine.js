@@ -1,5 +1,12 @@
 export const FOCUS = [4, 5, 6];
 export const STORAGE_KEY = 'maxim-quiz-v1';
+export function remainingSeconds(deadline, now = Date.now()) {
+  return Math.max(0, Math.ceil((deadline - now) / 1000));
+}
+export function elapsedSeconds(started, timed, now = Date.now()) {
+  const seconds = Math.max(0, (now - started) / 1000);
+  return timed ? Math.min(60, seconds) : seconds;
+}
 export function shuffle(items, random = Math.random) {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i--) {
