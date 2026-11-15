@@ -4,3 +4,6 @@ dist/
 node_modules/
 test-results/
 .env*
+
+output/
+.playwright-cli/

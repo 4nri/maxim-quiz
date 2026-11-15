@@ -29,3 +29,15 @@ export function reveal(element, { emphasis = false } = {}) {
 }
 
 export { cancelMotion };
+
+export function animateMascot(element) {
+  if (!element?.animate || reducedMotion.matches || document.hidden || root.dataset.input === 'keyboard') return;
+  const style = getComputedStyle(root);
+  const animation = element.animate([
+    { transform: 'translateY(3px) rotate(-2deg)' },
+    { transform: 'translateY(0) rotate(0)' },
+  ], { duration: parseFloat(style.getPropertyValue('--motion-enter')), easing: style.getPropertyValue('--ease-out').trim() });
+  active.add(animation);
+  animation.finished.catch(() => {}).finally(() => active.delete(animation));
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) cancelMotion(); });

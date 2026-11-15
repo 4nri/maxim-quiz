@@ -45,6 +45,7 @@ export function readState(storage) {
     return { ...freshState(), progress: Object.fromEntries(Object.entries(raw.progress).filter(([,v]) => v && Number.isInteger(v.attempts) && v.attempts>0 && Number.isInteger(v.correct) && v.correct>=0 && v.correct<=v.attempts && typeof v.wrong==='boolean')),
       read: Array.isArray(raw.read) ? raw.read.filter(n => Number.isInteger(n) && n>=1 && n<=18) : [],
       history: Array.isArray(raw.history) ? raw.history.filter(h=>h && Number.isFinite(h.correct) && Number.isFinite(h.total) && Number.isFinite(h.seconds)).slice(-30) : [],
+      game: raw.game && typeof raw.game === 'object' && !Array.isArray(raw.game) ? raw.game : undefined,
       session: raw.session || null };
   } catch { return freshState(); }
 }
