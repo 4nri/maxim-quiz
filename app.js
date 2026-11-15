@@ -1,5 +1,6 @@
 import { FOCUS, STORAGE_KEY, shuffle, selectQuestions, recordAnswer, summarize, readState, freshState, remainingSeconds, elapsedSeconds } from './engine.js';
 import { reveal, cancelMotion } from './motion.js';
+import { answerReaction, resultReaction, reactionMarkup, mountReactions, stopReactions } from './reactions.js';
 
 const main = document.querySelector('main');
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -78,11 +79,12 @@ function quizPage() {
   const s=state.session;if(!validSession(s)){state.session=null;save();return `<div class="empty"><h2>Начни новую тренировку</h2><p>Сохранённый раунд недоступен. Уже записанный прогресс сохранён.</p><a href="#home" class="button">К подготовке</a></div>`;}
   const q=byId(s.ids[s.index]), a=s.answers[s.index], exam=s.mode==='exam';
   const answered=Boolean(a);
+  const reaction=answerReaction(s.mode,s.answers,s.index);
   const secondsLeft=exam?(a?Math.max(0,Math.ceil(60-a.seconds)):remainingSeconds(s.deadline)):null;
   return `<div class="quiz-shell quiz-stage"><div class="quiz-head"><a href="#home" class="back" style="margin:0">← К подготовке</a><p>${exam?'Пробный квиз':s.mode==='errors'?'Повторение ошибок':'Тренировка'}</p><span class="timer ${exam&&secondsLeft<=10?'urgent':''}" id="timer" role="timer" aria-label="Осталось времени">${exam?`${secondsLeft} с`:'∞'}</span></div>${exam?'<p class="note quiz-instruction">Обсуди вопрос с командой или ответь сам. Разбор появится после игры.</p>':'<p class="note">Без ограничения времени. Подумай, затем выбери один ответ.</p>'}<div class="round-progress"><span>Вопрос ${s.index+1} из ${s.ids.length}</span><span>Ответов принято: ${s.answers.length}</span></div><div class="bar" aria-label="Прогресс раунда"><i style="transform:scaleX(${s.answers.length/s.ids.length})"></i></div>${exam?`<div class="countdown-track" aria-hidden="true"><i style="transform:scaleX(${answered?Math.max(0,1-a.seconds/60):Math.max(0,(s.deadline-Date.now())/60000)})"></i></div>`:''}<section class="quiz-card"><p class="eyebrow">ТЕМА ${q.topic} · ${esc(topicById(q.topic).short)}</p><h1>${esc(q.prompt)}</h1><div class="answers">${s.options[q.id].map((o,i)=>{
     const correct=answered&&!exam&&o===q.answer, wrong=answered&&!exam&&o===a.answer&&!a.correct;
     return `<button class="answer ${correct?'correct':wrong?'wrong':answered&&o===a.answer?'selected':''}" data-action="answer" data-value="${i}" data-choice="${i}" ${answered?'disabled':''}><span class="answer-symbol" aria-hidden="true">${['▲','◆','●','■'][i]}</span><span class="answer-label">${esc(o)}</span><span class="answer-key" aria-hidden="true">${i+1}</span>${correct?'<span class="answer-status" aria-label="Правильный ответ">✓</span>':wrong?'<span class="answer-status" aria-label="Неверный ответ">✕</span>':''}</button>`;
-  }).join('')}</div>${answered?`<div class="feedback ${!exam&&!a.correct?'wrong':''}" role="status"><strong>${exam?(a.answer===null?'Время вышло':'Ответ принят'):(a.correct?'Верно!':'Запомним правильный ответ')}</strong><p>${exam?'Переходи к следующему вопросу.':esc(q.explanation)}</p>${!exam?source(q):''}</div>`:''}<div class="quiz-bottom"><p>${answered?'Ответ сохранён.':`<span class="keyboard-hint">Клавиши 1, 2, 3, 4</span><span class="touch-hint">Коснись варианта ответа</span>`}</p>${answered?action('next',s.index===s.ids.length-1?'Мой результат →':'Следующий вопрос →'):''}</div></section></div>`;
+  }).join('')}</div>${answered?`<div class="feedback ${!exam&&!a.correct?'wrong':''}" role="status"><div class="feedback-main">${reactionMarkup(reaction)}<div class="feedback-copy"><strong>${exam?(a.answer===null?'Время вышло':'Ответ принят'):esc(reaction.title)}</strong><p>${exam?'Переходи к следующему вопросу.':esc(q.explanation)}</p></div></div>${!exam?source(q):''}</div>`:''}<div class="quiz-bottom"><p>${answered?'Ответ сохранён.':`<span class="keyboard-hint">Клавиши 1, 2, 3, 4</span><span class="touch-hint">Коснись варианта ответа</span>`}</p>${answered?action('next',s.index===s.ids.length-1?'Мой результат →':'Следующий вопрос →'):''}</div></section></div>`;
 }
 function answer(index) {
   const s=state.session;if(!validSession(s)||s.answers[s.index])return;
@@ -119,7 +121,7 @@ function tick() {
 function resultPage() {
   const r=lastResult;if(!r)return `<div class="empty"><h2>Результаты сохраняются в твоём прогрессе</h2><p>Подробный разбор доступен сразу после раунда. Начни новую тренировку, чтобы проверить себя ещё раз.</p><a class="button" href="#home">Моя подготовка</a></div>`;
   const wrong=r.answers.filter(a=>!a.correct).length;
-  return `<div class="quiz-shell"><a href="#home" class="back">← Моя подготовка</a><section class="result-hero"><div class="result-emblem" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="19"/><path d="m15 24 6 6 13-14"/></svg></div><p class="eyebrow">${r.mode==='exam'?'ПРОБНЫЙ КВИЗ':'ТРЕНИРОВКА'} ЗАВЕРШЁН</p><div class="result-score">${r.correct}<span> / ${r.total}</span></div><h1>${wrong===0?'Все ответы верные!':r.correct/r.total>=.7?'Хорошая работа, Максим!':'Теперь ты знаешь, что повторить'}</h1><p>${wrong?`Вопросов для разбора: ${wrong}. Они добавлены в повторение.`:'Попробуй ещё один раунд, чтобы закрепить результат.'}<br>Среднее время ответа: ${Math.round(r.seconds/r.total)} с.</p><div class="result-actions">${wrong?action('errors','Повторить ошибки →'):action('exam','Новый пробный квиз →')}<a class="button secondary" href="#home">К моей подготовке</a></div></section><div class="section-top"><h2>Разбор ответов</h2><p>Открой вопрос для пояснения</p></div>${r.answers.map((a,i)=>{const q=byId(a.id);return `<details class="review-item ${a.correct?'':'failed'}" ${!a.correct?'open':''}><summary><span class="verdict">${a.correct?'✓':'✕'}</span> ${i+1}. ${esc(q.prompt)}</summary><p>Твой ответ: <strong>${esc(a.answer??'Время вышло')}</strong></p><p>${esc(q.explanation)}</p>${source(q)}<p><a href="#topic/${q.topic}">Перечитать тему ${q.topic} ↗</a></p></details>`;}).join('')}</div>`;
+  return `<div class="quiz-shell"><a href="#home" class="back">← Моя подготовка</a><section class="result-hero"><div class="result-reaction">${reactionMarkup(resultReaction(r.correct,r.total))}</div><p class="eyebrow">${r.mode==='exam'?'ПРОБНЫЙ КВИЗ':'ТРЕНИРОВКА'} ЗАВЕРШЁН</p><div class="result-score">${r.correct}<span> / ${r.total}</span></div><h1>${wrong===0?'Все ответы верные!':r.correct/r.total>=.7?'Хорошая работа, Максим!':'Теперь ты знаешь, что повторить'}</h1><p>${wrong?`Вопросов для разбора: ${wrong}. Они добавлены в повторение.`:'Попробуй ещё один раунд, чтобы закрепить результат.'}<br>Среднее время ответа: ${Math.round(r.seconds/r.total)} с.</p><div class="result-actions">${wrong?action('errors','Повторить ошибки →'):action('exam','Новый пробный квиз →')}<a class="button secondary" href="#home">К моей подготовке</a></div></section><div class="section-top"><h2>Разбор ответов</h2><p>Открой вопрос для пояснения</p></div>${r.answers.map((a,i)=>{const q=byId(a.id);return `<details class="review-item ${a.correct?'':'failed'}" ${!a.correct?'open':''}><summary><span class="verdict">${a.correct?'✓':'✕'}</span> ${i+1}. ${esc(q.prompt)}</summary><p>Твой ответ: <strong>${esc(a.answer??'Время вышло')}</strong></p><p>${esc(q.explanation)}</p>${source(q)}<p><a href="#topic/${q.topic}">Перечитать тему ${q.topic} ↗</a></p></details>`;}).join('')}</div>`;
 }
 function startCards(value) {
   const scope=scopeFor(value);flash={ids:shuffle(data.questions.filter(q=>scope.includes(q.topic))).map(q=>q.id),index:0,revealed:false,known:0,again:[],scope};navigate('#cards');
@@ -137,6 +139,7 @@ function printPage(id) {
 function render(scroll=true) {
   clearInterval(timer);
   cancelMotion();
+  stopReactions();
   if(!data)return;
   const [page,id]=(location.hash.slice(1)||'home').split('/');
   document.body.dataset.page=page;
@@ -146,7 +149,8 @@ function render(scroll=true) {
   document.querySelectorAll('[data-nav]').forEach(a=>{const active=a.dataset.nav===(page==='topic'?'topics':page);a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   document.title=`${page==='topic'&&topicById(id)?topicById(id).short:'Мой героический район'} · Тренажёр Максима`;
   if(scroll){window.scrollTo(0,0);main.focus({preventScroll:true});}
-  if(page==='result')reveal(document.querySelector('.result-emblem'),{emphasis:true});
+  if(page==='result')reveal(document.querySelector('.result-reaction'),{emphasis:true});
+  mountReactions(main);
   if(page==='quiz'&&state.session?.mode==='exam'&&!state.session.answers[state.session.index]){timer=setInterval(tick,200);tick();}
 }
 main.addEventListener('click',event=>{
